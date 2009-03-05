@@ -13,6 +13,6 @@ lib_LTLIBRARIES = \
 	libcopynes.la
 
 libcopynes_la_SOURCES = \
-	src/copynes.c  \
-	src/copynes.h
+	copynes.h      \
+	copynes.c
 
