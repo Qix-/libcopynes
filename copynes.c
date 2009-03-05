@@ -25,7 +25,7 @@
 #include <unistd.h>
 #include <termio.h>
 #include <string.h>
-#include "libcopynes.h"
+#include "copynes.h"
 
 #define _POSIX_SOURCE 1
 #define FAILED_DATA_OPEN 1
