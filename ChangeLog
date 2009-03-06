@@ -1,61 +1,33 @@
-2009-03-06 23:05  dave
+2009-03-06  dave
 
+	* configure.ac: oops
+	* AUTHORS, COPYING.LIB, ChangeLog, INSTALL, Makefile.am, NEWS,
+	  README, configure.ac, depcomp, install-sh, missing: getting
+	  autotools just right
+	* src: rm src dir
 	* copynes.c, copynes.h, src/Makefile.am, src/copynes.c,
 	  src/copynes.h: trying some more stuff
 
-2009-03-05 23:13  dave
+2009-03-05  dave
 
 	* Makefile.am, configure.ac, src, src/Makefile.am, src/copynes.c,
 	  src/copynes.h: doing autotools from scratch
-
-2009-03-05 23:02  dave
-
 	* .cvsignore, Makefile.am, autogen.sh, configure.ac, copynes.c,
 	  copynes.h, depcomp, install-sh, libcopynes.anjuta, missing:
 	  starting over from scratch with autotools
-
-2009-03-05 10:07  dave
-
 	* configure.ac: a tweak
-
-2009-03-05 10:02  dave
-
 	* copynes.c: cleaning
-
-2009-03-05 09:59  dave
-
 	* src: cleaning up
-
-2009-03-05 09:59  dave
-
 	* Makefile.am, copynes.c, copynes.h, src/Makefile.am,
 	  src/copynes.c, src/copynes.h: moving stuff back
-
-2009-03-05 09:56  dave
-
 	* Makefile.am, copynes.c, copynes.h, src/Makefile.am,
 	  src/copynes.c, src/copynes.h: moving stuff around
-
-2009-03-05 09:52  dave
-
 	* src: moving source files to src dir, step 1
-
-2009-03-05 09:50  dave
-
 	* Makefile.am, copynes.c, copynes.h, libcopynes.c, libcopynes.h:
 	  renaming some files
-
-2009-03-05 09:47  dave
-
 	* .cvsignore, Makefile.am, autogen.sh, configure.ac, depcomp,
 	  install-sh, libcopynes.anjuta, libcopynes.c, libcopynes.h,
 	  missing: adding first version of the lib
-
-2009-03-05 09:46  dave
-
 	* .: setting .cvsignore settings
-
-2009-03-05 09:38  dave
-
 	* .: creating repo
 
