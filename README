@@ -1,0 +1,36 @@
+libcopynes version 0.1
+
+This is a brand new portable library for talking to the CopyNES device 
+sold through retrousb.com.  The original software that shipped with the 
+device is Windows only and uses the custom FTDI DLL to talk to the 
+device.  Since then, FTDI has released virtual com port (VCP) drivers 
+for Windows, Linux and Mac OS X that makes the FTDI usb serial chip used 
+in the CopyNES look like two standard serial devices.
+
+This library is designed to control the CopyNES through the VCP serial 
+devices instead of the old custom FTDI drivers.  This makes the library 
+extremely portable and expands the number of platforms the CopyNES can 
+be used on.
+
+You must have the VCP driver installed on your system before this 
+library will work.  If you are using Linux, the 2.6.9 or newer kernel 
+contains the driver.  I'm currently using Ubuntu 8.04 and when I plugged 
+by CopyNES in, it was automatically detected, the VCP module was 
+automatically loaded and the two serial devices were automatically 
+created.
+
+The copynes_open() function takes the string paths to the two serial 
+devices.  On my Ubuntu system, the two serial devices were registered as 
+/dev/ttyUSB0 and /dev/ttyUSB1.  On the CopyNES, the ttyUSB0 device is 
+the data channel and the ttyUSB1 is the control channel.
+
+Currently this library is still a work in progress.  I'm implementing 
+features as I need them with plans to support all CopyNES functions.
+
+If you use this library in a project, please let me know what you're 
+using it for.  If you find a bug, let me know, or better yet, send me a 
+patch to fix it ;-)
+
+Enjoy!
+
+Dave
