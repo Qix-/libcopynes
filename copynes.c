@@ -51,26 +51,26 @@ struct copynes_s
 };
 
 
-void copynes_flush(copynes_t* cn)
+void copynes_flush(copynes_t cn)
 {
     /* flush I/O buffers on both serial devices */
     tcflush(cn->data, TCIOFLUSH);
     tcflush(cn->control, TCIOFLUSH);
 }
 
-void copynes_get_status(copynes_t* cn)
+void copynes_get_status(copynes_t cn)
 {
     /* get the status bits on the control port */
     ioctl(cn->control, TIOCMGET, &cn->status);
 }
 
-void copynes_set_status(copynes_t* cn)
+void copynes_set_status(copynes_t cn)
 {
     /* set the status bits on the control port */
     ioctl(cn->control, TIOCMSET, &cn->status);
 }
 
-void copynes_close(copynes_t* cn)
+void copynes_close(copynes_t cn)
 {
     close(cn->data);
     close(cn->control);
@@ -80,7 +80,7 @@ void copynes_close(copynes_t* cn)
         free(cn->control_device);
 }
 
-int copynes_open(copynes_t* cn, char* data_device, char* control_device)
+int copynes_open(copynes_t cn, char* data_device, char* control_device)
 {
     /* clear the struct memory */
     memset(cn, 0, sizeof(copynes_t));
@@ -113,18 +113,18 @@ int copynes_open(copynes_t* cn, char* data_device, char* control_device)
     return 0;
 }
 
-copynes_t* copynes_new()
+copynes_t copynes_new()
 {
-    return (copynes_t*)malloc(sizeof(copynes_t));
+    return (copynes_t)malloc(sizeof(struct copynes_s));
 }
 
 void copynes_free(void* cn)
 {
-    copynes_close((copynes_t*)cn);
+    copynes_close((copynes_t)cn);
     free(cn);
 }
 
-int copynes_reset(copynes_t* cn, int mode)
+int copynes_reset(copynes_t cn, int mode)
 {
     if(mode & RESET_PLAYMODE)
     {
@@ -166,7 +166,7 @@ int copynes_reset(copynes_t* cn, int mode)
     return 0;
 }
 
-int copynes_nes_on(copynes_t* cn)
+int copynes_nes_on(copynes_t cn)
 {
     /* get the status of the NES */
     copynes_get_status(cn);
@@ -177,11 +177,13 @@ int copynes_nes_on(copynes_t* cn)
 
 /* get the copy nes version string, the buffer is allocated using malloc and
    the caller must free it themselves */
-int copynes_get_version(copynes_t* cn, char** str)
+int copynes_get_version(copynes_t cn, char** str)
 {
     int bytes, i;
     unsigned char a = 0xA1;
 	char* p;
+	
+	copynes_flush(cn);
 	
     *str = (char*)calloc(255, sizeof(char));
     p = *str;
@@ -210,7 +212,7 @@ int copynes_get_version(copynes_t* cn, char** str)
     return strlen(p);
 }
 
-char* copynes_error_string(copynes_t* cn)
+char* copynes_error_string(copynes_t cn)
 {
     int idx = -1 * cn->err;
     return errors[idx];
