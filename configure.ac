@@ -1,4 +1,4 @@
-AC_INIT(CopyNES Library, 0.1, dave@linuxprogrammer.org, copynes)
+AC_INIT(CopyNES Library, 0.2, dave@linuxprogrammer.org, copynes)
 AC_PREREQ(2.53)
 AC_COPYRIGHT(GNU Library General Public License)
 AC_REVISION($Revision$)

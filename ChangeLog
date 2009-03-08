@@ -1,5 +1,22 @@
+2009-03-08  dave
+
+	* copynes.c, copynes.h: added plugin loading and running
+	  added reading plugin output mirroring and packets
+
+2009-03-07  dave
+
+	* copynes.c, copynes.h: some details
+	* copynes.c, copynes.h: fixing some bugs
+	* configure.ac: fixing the install paths
+	* autogen.sh: readding it as executable
+	* autogen.sh: removing autogen.sh and trying again
+	* autogen.sh: readding autogen.sh so that it is executable
+	* acinclude.m4: adding libtool macro defines
+	* autogen.sh: adding autogen.sh
+
 2009-03-06  dave
 
+	* ChangeLog: done with autotools
 	* configure.ac: oops
 	* AUTHORS, COPYING.LIB, ChangeLog, INSTALL, Makefile.am, NEWS,
 	  README, configure.ac, depcomp, install-sh, missing: getting
