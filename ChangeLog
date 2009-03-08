@@ -1,5 +1,8 @@
 2009-03-08  dave
 
+	* ChangeLog, Makefile.am, autogen.sh, configure.ac: fixing the
+	  versioning of the dynamic library
+	  tweaking the autogen.sh script
 	* copynes.c, copynes.h: added plugin loading and running
 	  added reading plugin output mirroring and packets
 
