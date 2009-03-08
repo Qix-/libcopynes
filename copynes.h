@@ -23,12 +23,33 @@
 
 #define USLEEP_SHORT 100000
 #define USLEEP_LONG 1000000
-#define RESET_COPYMODE 0
-#define RESET_PLAYMODE 1
-#define RESET_ALTPORT  2
-#define RESET_NORESET  4
+
+/* reset modes */
+#define RESET_COPYMODE 			0
+#define RESET_PLAYMODE 			1
+#define RESET_ALTPORT  			2
+#define RESET_NORESET  			4
+
+/* mirroring values */
+#define MIRRORING_HORIZONTAL	0		/* hard wired */
+#define MIRRORING_VERTICAL		1		/* hard wired */
+#define MIRRORING_4SCREEN		2		/* e.g. Gauntlet */
+#define MIRRORING_MMC			4		/* e.g. MMC1 */
+
+/* packet types */
+#define PACKET_PRG_ROM			1		/* PRG ROM */
+#define PACKET_CHR_ROM			2 		/* CHR ROM */
+#define PACKET_WRAM				3		/* WRAM */
+#define PACKET_EOD				0		/* END OF DATA */
 
 typedef struct copynes_s *copynes_t;
+
+typedef struct copynes_packet_s
+{
+	int size;							/* in bytes */
+	int type;							/* packet type */
+	uint8_t* data;						/* the data */
+} *copynes_packet_t;
 
 copynes_t copynes_new();
 void copynes_free(void* cn);
@@ -40,12 +61,28 @@ void copynes_close(copynes_t cn);
 /* reset the copy nes device into the mode specified */
 int copynes_reset(copynes_t cn, int mode);
 
+/* flush the I/O buffers in the CopyNES */
+void copynes_flush(copynes_t cn);
+
 /* test to see if the NES is on or not */
 int copynes_nes_on(copynes_t cn);
 
 /* get the copy nes version string, the buffer is allocated using malloc and
    the caller must free it themselves */
 int copynes_get_version(copynes_t cn, char** str);
+
+/* load a specified CopyNES plugin, NOTE: plugin must be full path to the .bin */
+int copynes_load_plugin(copynes_t cn, char* plugin);
+
+/* run the loaded plugin */
+int copynes_run_plugin(copynes_t cn);
+
+/* read in the mirroring value sent from an executing plugin */
+int copynes_read_mirroring(copynes_t cn, uint8_t* mirroring);
+
+/* read in a packet from an executing plugin, packet is allocated using malloc
+   and the caller must free it themselves */
+int copynes_read_packet(copynes_t cn, copynes_packet_t *p);
 
 /* get the error string associated with the error */
 char* copynes_error_string(copynes_t cn);

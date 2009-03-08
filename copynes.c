@@ -20,24 +20,36 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <termio.h>
 #include <string.h>
+#include <arpa/inet.h>
 #include "copynes.h"
 
 #define _POSIX_SOURCE 1
-#define FAILED_DATA_OPEN 1
-#define FAILED_CONTROL_OPEN 2
-#define FAILED_COMMAND_SEND 3
+
+#define KB(x) (x * 1024)
+
+/* error codes */
+#define FAILED_DATA_OPEN 		1
+#define FAILED_CONTROL_OPEN 	2
+#define FAILED_COMMAND_SEND 	3
+#define FAILED_PLUGIN_OPEN 		4
+#define FAILED_BLOCK_SEND		5
+#define FAILED_DATA_READ		6
 
 char *errors[] =
 {
     "",
     "failed to open data device",
     "failed to open control device",
-    "failed to send command"
+    "failed to send command",
+	"failed to open the specified plugin",
+	"failed to send a block of data",
+	"failed to read from data channel"
 };
 
 struct copynes_s
@@ -94,8 +106,8 @@ int copynes_open(copynes_t cn, char* data_device, char* control_device)
 
     if(cn->data == -1) 
     {
-        cn->err = -FAILED_DATA_OPEN;
-        return cn->err;
+        cn->err = FAILED_DATA_OPEN;
+        return -cn->err;
     }
 
     /* try to open the control channel */
@@ -103,8 +115,8 @@ int copynes_open(copynes_t cn, char* data_device, char* control_device)
 
     if (cn->control == -1) 
     {
-        cn->err = -FAILED_CONTROL_OPEN;
-        return cn->err;
+        cn->err = FAILED_CONTROL_OPEN;
+        return -cn->err;
     }
     
     /* flush the buffers */
@@ -175,45 +187,184 @@ int copynes_nes_on(copynes_t cn)
     return !(cn->status & TIOCM_CAR);
 }
 
-/* get the copy nes version string, the buffer is allocated using malloc and
-   the caller must free it themselves */
 int copynes_get_version(copynes_t cn, char** str)
 {
     int bytes, i;
     unsigned char a = 0xA1;
 	char* p;
 	
-	copynes_flush(cn);
-	
     *str = (char*)calloc(255, sizeof(char));
     p = *str;
     
-    bytes = write(cn->data, &a, 1);
-
-    if (bytes != 1) 
+	/* send the command */
+    if(write(cn->data, &a, 1) != 1) 
     {
-        cn->err = -FAILED_COMMAND_SEND;
-        return cn->err;
+        cn->err = FAILED_COMMAND_SEND;
+        return -cn->err;
     } 
-    else 
-    {
-        usleep(USLEEP_SHORT);
-        
-        // read the bytes
-        for(i = 0; i < 255; i++) 
-        {
-            bytes = read(cn->data, &p[i], 1);
-        
-            if(bytes <= 0)
-                break;
-        }
-    }
+
+	/* wait a bit */
+	usleep(USLEEP_SHORT);
+	
+	/* read the bytes */
+	for(i = 0; i < 255; i++) 
+	{
+		bytes = read(cn->data, &p[i], 1);
+	
+		if(bytes <= 0)
+			break;
+	}
     
     return strlen(p);
 }
 
+int copynes_load_plugin(copynes_t cn, char* plugin)
+{
+	FILE* f = 0;
+	int i;
+	char* prg = 0;
+	char cmd[] = { 0x4b, 0x00, 0x04, 0x04, 0xb4 };
+	
+	/* try to open the plugin file */
+	if((f = fopen(plugin, "rb")) == 0)
+	{
+		cn->err = FAILED_PLUGIN_OPEN;
+		return -cn->err;
+	}
+	
+	/* send the command to store the plugin prg data at 0400h */
+	if(write(cn->data, cmd, 5) != 5)
+	{
+		fclose(f);
+		cn->err = FAILED_COMMAND_SEND;
+		return -cn->err;
+	}
+	
+	/* seek to the plugin prg data */
+	fseek(f, 128, SEEK_SET);
+	prg = calloc(KB(1), sizeof(char));
+	
+	/* read in the plugin prg data */	
+	fread(prg, KB(1), sizeof(char), f);
+	
+	/* send the data to the CopyNES */
+	if(write(cn->data, prg, KB(1)) != KB(1))
+	{
+		free(prg);
+		fclose(f);
+		cn->err = FAILED_BLOCK_SEND;
+		return -cn->err;
+	}
+	
+	/* cleanup */
+	fclose(f);
+	free(prg);
+	
+	/* wait a bit */
+	usleep(USLEEP_SHORT);
+	
+	return 0;
+}
+
+int copynes_run_plugin(copynes_t cn)
+{
+	char cmd[] = { 0x7e, 0x00, 0x04, 0x00, 0xe7 };
+	
+	/* send the command to execute the code at 0400h */
+	if(write(cn->data, cmd, 5) != 5)
+	{
+		cn->err = FAILED_COMMAND_SEND;
+		return -cn->err;
+	}
+	
+	return 0;
+}
+
+int copynes_read_mirroring(copynes_t cn, uint8_t* mirroring)
+{
+	/* read in the mirroring byte */
+	if(read(cn->data, mirroring, sizeof(uint8_t)) != sizeof(uint8_t))
+	{
+		cn->err = FAILED_DATA_READ;
+		return -cn->err;
+	}
+	
+	return 0;
+}
+
+int copynes_read_packet(copynes_t cn, copynes_packet_t *p)
+{
+	int bytes, i;
+	uint8_t tmpbyte = 0;
+	uint16_t tmpshort = 0;
+	copynes_packet_t pkt = 0;
+	
+	/* allocate the packet struct */
+	*p = calloc(1, sizeof(struct copynes_packet_s));
+	pkt = *p;
+	
+	/* read in the packet size and store it in big endian (network) order */
+	if(read(cn->data, &((uint8_t*)&tmpshort)[0], sizeof(uint8_t)) != sizeof(uint8_t))
+	{
+		cn->err = FAILED_DATA_READ;
+		return -cn->err;
+	}
+	if(read(cn->data, &((uint8_t*)&tmpshort)[1], sizeof(uint8_t)) != sizeof(uint8_t))
+	{
+		cn->err = FAILED_DATA_READ;
+		return -cn->err;
+	}
+	
+	/* convert the size from network order to host order so that we're portable
+	   I want this to run on my PPC mac just fine ;-) */
+	pkt->size = ntohs(tmpshort);
+	
+	/* convert from number of 256 byte blocks to the number of bytes */
+	pkt->size << 8;
+	
+	/* read in the packet format */
+	if(read(cn->data, &tmpbyte, 1) != 1)
+	{
+		cn->err = FAILED_DATA_READ;
+		return -cn->err;
+	}
+	pkt->type = tmpbyte;
+	
+	/* check to see if there is packet body data to read */
+	if((pkt->size > 0) && (pkt->type != PACKET_EOD))
+	{
+		/* yep, allocate a buffer */
+		pkt->data = calloc(pkt->size, sizeof(uint8_t));
+		
+		/* read in the data */
+		while(i < pkt->size)
+		{
+			/* try to read the remainder of the packet */
+			bytes = read(cn->data, &pkt->data[i], (pkt->size - i));
+			
+			/* break if error */
+			if(bytes < 0)
+				break;
+			
+			/* move ahead the number of bytes we've read */
+			i += bytes;
+			
+			/* slow down so that we don't get ahead of the CopyNES */
+			usleep(USLEEP_SHORT);
+		}
+		
+		/* make sure we read the entire packet */
+		if(i < pkt->size)
+		{
+			cn->err = FAILED_DATA_READ;
+			return -cn->err;
+		}
+	}
+	
+	return 0;
+}
+
 char* copynes_error_string(copynes_t cn)
 {
-    int idx = -1 * cn->err;
-    return errors[idx];
+    return errors[cn->err];
 }
