@@ -1,5 +1,12 @@
+2009-04-03  dave
+
+	* Makefile.am, copynes.c, copynes.h: switched over to async I/O and
+	  fixed the serial port config problems.
+
 2009-03-08  dave
 
+	* COPYING, COPYING.LIB: updating to LGPL 3.0
+	* ChangeLog: updating ChangeLog
 	* ChangeLog, Makefile.am, autogen.sh, configure.ac: fixing the
 	  versioning of the dynamic library
 	  tweaking the autogen.sh script
