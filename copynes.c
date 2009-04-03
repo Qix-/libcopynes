@@ -1,6 +1,6 @@
 /* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 4; tab-width: 4 -*- */
 /*
- * libcopynes.c
+ * copynes.c
  * Copyright (C) David Huseby 2009 <dave@linuxprogrammer.org>
  * 
  * This program is free software; you can redistribute it and/or
@@ -27,6 +27,9 @@
 #include <termio.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/select.h> 
 #include "copynes.h"
 
 #define _POSIX_SOURCE 1
@@ -40,6 +43,8 @@
 #define FAILED_PLUGIN_OPEN 		4
 #define FAILED_BLOCK_SEND		5
 #define FAILED_DATA_READ		6
+#define FAILED_INVALID_PARAMS	7
+#define FAILED_DATA_WRITE		8
 
 char *errors[] =
 {
@@ -49,9 +54,19 @@ char *errors[] =
     "failed to send command",
 	"failed to open the specified plugin",
 	"failed to send a block of data",
-	"failed to read from data channel"
+	"failed to read from data channel",
+	"passed invalid parameters to library function",
+	"failed to write data to the data channel"
 };
 
+/* protocol commands */
+uint8_t CMD_GET_VERSION[] = 	{ 0xa1 };
+uint8_t CMD_LOAD_PLUGIN[] = 	{ 0x4b, 0x00, 0x04, 0x04, 0xb4 };
+uint8_t CMD_RUN_PLUGIN[] =		{ 0x7e, 0x00, 0x04, 0x00, 0xe7 };
+
+#define CMD_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
+/* CopyNES state */
 struct copynes_s
 {
 	int data;
@@ -60,38 +75,33 @@ struct copynes_s
 	int err;
 	char* data_device;
 	char* control_device;
+	fd_set readfds;
+	fd_set exceptfds;
+	struct termios old_tios_data_device;
+	struct termios old_tios_control_device;
 };
 
+/* private interface function declarations */
+void copynes_get_status(copynes_t cn);
+void copynes_set_status(copynes_t cn);
+void copynes_configure_tios(struct termios * tios); /* used by copynes_configure_devices */
+void copynes_configure_devices(copynes_t cn);
 
-void copynes_flush(copynes_t cn)
+
+copynes_t copynes_new()
 {
-    /* flush I/O buffers on both serial devices */
-    tcflush(cn->data, TCIOFLUSH);
-    tcflush(cn->control, TCIOFLUSH);
+    return (copynes_t)calloc(1, sizeof(struct copynes_s));
 }
 
-void copynes_get_status(copynes_t cn)
+
+void copynes_free(void* cn)
 {
-    /* get the status bits on the control port */
-    ioctl(cn->control, TIOCMGET, &cn->status);
+    copynes_close((copynes_t)cn);
+    free(cn);
 }
 
-void copynes_set_status(copynes_t cn)
-{
-    /* set the status bits on the control port */
-    ioctl(cn->control, TIOCMSET, &cn->status);
-}
 
-void copynes_close(copynes_t cn)
-{
-    close(cn->data);
-    close(cn->control);
-    if(cn->data_device != 0)
-        free(cn->data_device);
-    if(cn->control_device != 0)
-        free(cn->control_device);
-}
-
+/* initialize/deinitialize the copy nes device */
 int copynes_open(copynes_t cn, char* data_device, char* control_device)
 {
     /* clear the struct memory */
@@ -118,24 +128,36 @@ int copynes_open(copynes_t cn, char* data_device, char* control_device)
         cn->err = FAILED_CONTROL_OPEN;
         return -cn->err;
     }
-    
+	
+	/* configure the devices */
+	copynes_configure_devices(cn);
+	
     /* flush the buffers */
     copynes_flush(cn);
     
     return 0;
 }
 
-copynes_t copynes_new()
+
+void copynes_close(copynes_t cn)
 {
-    return (copynes_t)malloc(sizeof(struct copynes_s));
+	/* reset the termios settings */
+	tcsetattr(cn->data, TCSAFLUSH, &cn->old_tios_data_device);
+	tcsetattr(cn->control, TCSAFLUSH, &cn->old_tios_control_device);
+	
+	/* close the devices */
+    close(cn->data);
+    close(cn->control);
+	
+	/* free up the strings */
+    if(cn->data_device != 0)
+        free(cn->data_device);
+    if(cn->control_device != 0)
+        free(cn->control_device);
 }
 
-void copynes_free(void* cn)
-{
-    copynes_close((copynes_t)cn);
-    free(cn);
-}
 
+/* reset the copy nes device into the mode specified */
 int copynes_reset(copynes_t cn, int mode)
 {
     if(mode & RESET_PLAYMODE)
@@ -178,6 +200,89 @@ int copynes_reset(copynes_t cn, int mode)
     return 0;
 }
 
+
+/* flush the I/O buffers in the CopyNES */
+void copynes_flush(copynes_t cn)
+{
+    /* flush I/O buffers on both serial devices */
+    tcflush(cn->data, TCIOFLUSH);
+    tcflush(cn->control, TCIOFLUSH);
+}
+
+
+/* read data from the CopyNES */
+ssize_t copynes_read(copynes_t cn, void* buf, size_t count, struct timeval *timeout)
+{
+	ssize_t ret = 0;
+	int i = 0;
+	int bytes = 0;
+	
+	if((count <= 0) || (buf == 0))
+	{
+		cn->err = FAILED_INVALID_PARAMS;
+		return -cn->err;
+	}
+	
+	/* try to read as much data as was requested */
+	while(i < count)
+	{
+		/* check to see if we've run out of time */
+		if((timeout != 0) && (timeout->tv_sec <= 0) && (timeout->tv_usec <= 0))
+			break;
+		
+		/* clear the fd sets */
+		FD_ZERO(&cn->readfds);
+		FD_ZERO(&cn->exceptfds);
+		
+		/* add the file descriptors to the test sets */
+		FD_SET(cn->data, &cn->readfds);
+		FD_SET(cn->data, &cn->exceptfds);
+		
+		/* wait for input */
+		if((ret = select(cn->data + 1, &cn->readfds, 0, &cn->exceptfds, timeout)) < 0)
+		{
+			cn->err = FAILED_DATA_READ;
+			return -cn->err;
+		}
+		
+		/* we've got data ready to read */
+		if((ret > 0) && FD_ISSET(cn->data, &cn->readfds))
+		{
+			if((bytes = read(cn->data, (buf + i), (count - i))) < 0)
+			{
+				cn->err = FAILED_DATA_READ;
+				return -cn->err;
+			}
+			
+			i += bytes;
+		}
+	}
+	
+	return (ssize_t)i;
+}
+
+/* write data to the CopyNES */
+ssize_t copynes_write(copynes_t cn, void* buf, size_t size)
+{
+	ssize_t ret = 0;
+	
+	if((size <= 0) || (buf == 0))
+	{
+		cn->err = FAILED_INVALID_PARAMS;
+		return -cn->err;
+	}
+	
+	if((ret = write(cn->data, buf, size)) < 0)
+	{
+		cn->err = FAILED_DATA_WRITE;
+		return -cn->err;
+	}
+	
+	return ret;
+}
+
+
+/* test to see if the NES is on or not */
 int copynes_nes_on(copynes_t cn)
 {
     /* get the status of the NES */
@@ -187,43 +292,36 @@ int copynes_nes_on(copynes_t cn)
     return !(cn->status & TIOCM_CAR);
 }
 
-int copynes_get_version(copynes_t cn, char** str)
-{
-    int bytes, i;
-    unsigned char a = 0xA1;
-	char* p;
-	
-    *str = (char*)calloc(255, sizeof(char));
-    p = *str;
-    
-	/* send the command */
-    if(write(cn->data, &a, 1) != 1) 
-    {
-        cn->err = FAILED_COMMAND_SEND;
-        return -cn->err;
-    } 
 
-	/* wait a bit */
-	usleep(USLEEP_SHORT);
+/* get the copy nes version string, the buffer is allocated using malloc and
+   the caller must free it themselves */
+ssize_t copynes_get_version(copynes_t cn, void* buf, size_t size)
+{
+	ssize_t ret = 0;
+	struct timeval t = { 1L, 0L };
 	
-	/* read the bytes */
-	for(i = 0; i < 255; i++) 
+	/* send the get version command */
+	if(copynes_write(cn, CMD_GET_VERSION, CMD_SIZE(CMD_GET_VERSION)) != CMD_SIZE(CMD_GET_VERSION))
 	{
-		bytes = read(cn->data, &p[i], 1);
-	
-		if(bytes <= 0)
-			break;
+		cn->err = FAILED_COMMAND_SEND;
+        return -cn->err;
 	}
-    
-    return strlen(p);
+	
+	if((ret = copynes_read(cn, buf, size, &t)) < 0)
+	{
+		return ret;
+	}
+	
+	return ret;
 }
 
+
+/* load a specified CopyNES plugin, NOTE: plugin must be full path to the .bin */
 int copynes_load_plugin(copynes_t cn, char* plugin)
 {
 	FILE* f = 0;
 	int i;
-	char* prg = 0;
-	char cmd[] = { 0x4b, 0x00, 0x04, 0x04, 0xb4 };
+	uint8_t* prg = 0;
 	
 	/* try to open the plugin file */
 	if((f = fopen(plugin, "rb")) == 0)
@@ -233,7 +331,7 @@ int copynes_load_plugin(copynes_t cn, char* plugin)
 	}
 	
 	/* send the command to store the plugin prg data at 0400h */
-	if(write(cn->data, cmd, 5) != 5)
+	if(copynes_write(cn, CMD_LOAD_PLUGIN, CMD_SIZE(CMD_LOAD_PLUGIN)) != CMD_SIZE(CMD_LOAD_PLUGIN))
 	{
 		fclose(f);
 		cn->err = FAILED_COMMAND_SEND;
@@ -242,13 +340,13 @@ int copynes_load_plugin(copynes_t cn, char* plugin)
 	
 	/* seek to the plugin prg data */
 	fseek(f, 128, SEEK_SET);
-	prg = calloc(KB(1), sizeof(char));
+	prg = calloc(KB(1), sizeof(uint8_t));
 	
 	/* read in the plugin prg data */	
-	fread(prg, KB(1), sizeof(char), f);
+	fread(prg, KB(1), sizeof(uint8_t), f);
 	
 	/* send the data to the CopyNES */
-	if(write(cn->data, prg, KB(1)) != KB(1))
+	if(copynes_write(cn, prg, KB(1)) != KB(1))
 	{
 		free(prg);
 		fclose(f);
@@ -266,12 +364,12 @@ int copynes_load_plugin(copynes_t cn, char* plugin)
 	return 0;
 }
 
+
+/* run the loaded plugin */
 int copynes_run_plugin(copynes_t cn)
 {
-	char cmd[] = { 0x7e, 0x00, 0x04, 0x00, 0xe7 };
-	
 	/* send the command to execute the code at 0400h */
-	if(write(cn->data, cmd, 5) != 5)
+	if(copynes_write(cn, CMD_RUN_PLUGIN, CMD_SIZE(CMD_RUN_PLUGIN)) != CMD_SIZE(CMD_RUN_PLUGIN))
 	{
 		cn->err = FAILED_COMMAND_SEND;
 		return -cn->err;
@@ -280,91 +378,283 @@ int copynes_run_plugin(copynes_t cn)
 	return 0;
 }
 
-int copynes_read_mirroring(copynes_t cn, uint8_t* mirroring)
-{
-	/* read in the mirroring byte */
-	if(read(cn->data, mirroring, sizeof(uint8_t)) != sizeof(uint8_t))
-	{
-		cn->err = FAILED_DATA_READ;
-		return -cn->err;
-	}
-	
-	return 0;
-}
 
-int copynes_read_packet(copynes_t cn, copynes_packet_t *p)
+/* packet reading states */
+#define PACKET_START		0
+#define PACKET_READ_SIZE_1	1
+#define PACKET_READ_SIZE_2	2
+#define PACKET_READ_FORMAT 	3
+#define PACKET_READ_DATA	4
+#define PACKET_END			5
+
+ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 {
-	int bytes, i;
+	int bytes = 0;
+	int ret = 0;
+	int i = 0;
+	int state = PACKET_START;
 	uint8_t tmpbyte = 0;
 	uint16_t tmpshort = 0;
 	copynes_packet_t pkt = 0;
+	struct timeval t = { 1L, 0L };
 	
-	/* allocate the packet struct */
-	*p = calloc(1, sizeof(struct copynes_packet_s));
-	pkt = *p;
-	
-	/* read in the packet size and store it in big endian (network) order */
-	if(read(cn->data, &((uint8_t*)&tmpshort)[0], sizeof(uint8_t)) != sizeof(uint8_t))
+	while(state != PACKET_END)
 	{
-		cn->err = FAILED_DATA_READ;
-		return -cn->err;
-	}
-	if(read(cn->data, &((uint8_t*)&tmpshort)[1], sizeof(uint8_t)) != sizeof(uint8_t))
-	{
-		cn->err = FAILED_DATA_READ;
-		return -cn->err;
-	}
-	
-	/* convert the size from network order to host order so that we're portable
-	   I want this to run on my PPC mac just fine ;-) */
-	pkt->size = ntohs(tmpshort);
-	
-	/* convert from number of 256 byte blocks to the number of bytes */
-	pkt->size << 8;
-	
-	/* read in the packet format */
-	if(read(cn->data, &tmpbyte, 1) != 1)
-	{
-		cn->err = FAILED_DATA_READ;
-		return -cn->err;
-	}
-	pkt->type = tmpbyte;
-	
-	/* check to see if there is packet body data to read */
-	if((pkt->size > 0) && (pkt->type != PACKET_EOD))
-	{
-		/* yep, allocate a buffer */
-		pkt->data = calloc(pkt->size, sizeof(uint8_t));
-		
-		/* read in the data */
-		while(i < pkt->size)
+		switch(state)
 		{
-			/* try to read the remainder of the packet */
-			bytes = read(cn->data, &pkt->data[i], (pkt->size - i));
-			
-			/* break if error */
-			if(bytes < 0)
+			case PACKET_START:
+			{
+				/* allocate the packet struct */
+				*p = calloc(1, sizeof(struct copynes_packet_s));
+				pkt = *p;
+				
+				/* move to the next state */
+				state = PACKET_READ_SIZE_1;
+				
 				break;
+			}
 			
-			/* move ahead the number of bytes we've read */
-			i += bytes;
-			
-			/* slow down so that we don't get ahead of the CopyNES */
-			usleep(USLEEP_SHORT);
-		}
+			case PACKET_READ_SIZE_1:
+			{
+				/* reset timeval struct */
+				t.tv_sec = 1;
+				t.tv_usec = 0;
+				
+				/* read in the low byte of the packet size */
+				if(copynes_read(cn, &((uint8_t*)&tmpshort)[1], sizeof(uint8_t), &t) != sizeof(uint8_t))
+				{
+					cn->err = FAILED_DATA_READ;
+					return -cn->err;
+				}
+				
+				/* move to the next state */
+				state = PACKET_READ_SIZE_2;
+				
+				break;
+			}
+				
+			case PACKET_READ_SIZE_2:
+			{
+				/* reset timeval struct */
+				t.tv_sec = 1;
+				t.tv_usec = 0;
+
+				/* read in the high byte of the packet size */
+				if(copynes_read(cn, &((uint8_t*)&tmpshort)[0], sizeof(uint8_t), &t) != sizeof(uint8_t))
+				{
+					cn->err = FAILED_DATA_READ;
+					return -cn->err;
+				}
+				
+				/* convert the size from network order to host order so that we're portable
+				   I want this to run on my PPC mac just fine ;-) */
+				pkt->size = ntohs(tmpshort);
+	
+				/* convert from number of 256 byte blocks to the number of bytes */
+				pkt->size <<= 8;
+				
+				/* move to the next state */
+				state = PACKET_READ_FORMAT;
+				break;
+			}
 		
-		/* make sure we read the entire packet */
-		if(i < pkt->size)
-		{
-			cn->err = FAILED_DATA_READ;
-			return -cn->err;
+			case PACKET_READ_FORMAT:
+			{
+				/* reset timeval struct */
+				t.tv_sec = 1;
+				t.tv_usec = 0;
+				
+				/* read in the packet format */
+				if(copynes_read(cn, &tmpbyte, sizeof(uint8_t), &t) != sizeof(uint8_t))
+				{
+					cn->err = FAILED_DATA_READ;
+					return -cn->err;
+				}
+				pkt->type = tmpbyte;
+				
+				/* check to see if there is packet body data to read */
+				if((pkt->size > 0) && (pkt->type != PACKET_EOD))
+				{
+					/* yep, allocate a buffer */
+					pkt->data = calloc(pkt->size, sizeof(uint8_t));
+		
+					/* move to the next state */
+					state = PACKET_READ_DATA;
+					
+					/* set up the index */
+					i = 0;
+				}
+				else
+				{
+					/* move to the next state */
+					state = PACKET_END;
+				}
+				break;
+			}
+			
+			case PACKET_READ_DATA:
+			{
+				/* reset timeval struct */
+				t.tv_sec = 1;
+				t.tv_usec = 0;
+				
+				/* read the bytes */
+				bytes = 0;
+				if(i < pkt->size)
+				{
+					/* now read the rest of the data in the input buffer */
+					bytes = copynes_read(cn, &pkt->data[i], (pkt->size - i), &t);
+					i += bytes;
+				}
+				else
+				{
+					/* move to the next state */
+					state = PACKET_END;
+				}
+				break;
+			}
 		}
 	}
 	
-	return 0;
+	return (ssize_t)i;
 }
 
+
+/* get the error string associated with the error */
 char* copynes_error_string(copynes_t cn)
 {
     return errors[cn->err];
 }
+
+
+/*
+ * Private helper functions
+ */
+
+/* get the current status bits of the control channel */
+void copynes_get_status(copynes_t cn)
+{
+    /* get the status bits on the control port */
+    ioctl(cn->control, TIOCMGET, &cn->status);
+}
+
+
+/* set the current status bits of the control channel */
+void copynes_set_status(copynes_t cn)
+{
+    /* set the status bits on the control port */
+    ioctl(cn->control, TIOCMSET, &cn->status);
+}
+
+
+/*
+ * NOTE: getting the serial driver configured correctly was a little tricky to
+ * figure out but thanks to the awesome Serial Programming Guide for POSIX
+ * Operating Systems <http://www.easysw.com/~mike/serial/serial.html> by 
+ * Michael R. Sweet, I was able to figure it out.
+ */
+void copynes_configure_tios(struct termios * tios)
+{
+	/* set up 115.2kB baud rate */
+	cfsetispeed(tios, B115200);
+    cfsetospeed(tios, B115200);
+	
+	/* enable receiver, make local */
+	tios->c_cflag |= (CLOCAL | CREAD);
+	
+	/* set 8N1 width, parity, and stop */
+	tios->c_cflag &= ~PARENB;
+	tios->c_cflag &= ~CSTOPB;
+	tios->c_cflag &= ~CSIZE;
+	tios->c_cflag |= CS8;
+		
+	/* enable hardware flow control */
+	tios->c_cflag |= CRTSCTS;
+
+	/* set up for raw input */
+	tios->c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK | ECHONL | ISIG);
+	
+	/* 
+	 * turn off all parity checking, marking, and stripping...also turn off
+	 * all software flow control and all of the bullshit mapping of CR's to LF's
+	 * and LF's to CR's...blah..who thought it would be this hard to receive
+	 * 8-bit binary data over a serial port?!?  I beat my head against this one 
+	 * for about a week before figuring out the correct settings for this flag!
+	 */
+	tios->c_iflag &= ~(INPCK | IGNPAR | PARMRK | ISTRIP | IXON | IXOFF | IXANY | ICRNL | INLCR | IUCLC | BRKINT);
+	
+	/* set up raw output */
+	tios->c_oflag &= ~OPOST;
+}
+
+void copynes_configure_devices(copynes_t cn)
+{
+	struct termios dataios;
+	struct termios controlios;
+	
+	/* save the current termios settings for the two devices */
+	tcgetattr(cn->data, &cn->old_tios_data_device);
+	tcgetattr(cn->control, &cn->old_tios_control_device);
+	
+	/* get the current data channel settings */
+	bzero(&dataios, sizeof(dataios));
+	tcgetattr(cn->data, &dataios);
+	
+	/* configure the data channel tios */
+	copynes_configure_tios(&dataios);
+		
+	/* set the new settings for the data device */
+	tcsetattr(cn->data, TCSAFLUSH, &dataios);
+	
+	/* get the current control channel settings */
+	bzero(&controlios, sizeof(controlios));
+	tcgetattr(cn->control, &controlios);
+	
+	/* configure the data channel tios */
+	copynes_configure_tios(&controlios);
+	
+	/* set the new settings for the control device */
+	tcsetattr(cn->control, TCSAFLUSH, &controlios);
+}
+
+#if 0
+int copynes_dump(copynes_t cn)
+{
+	int ret, total;
+	struct timeval t = { 1L, 0L };
+	uint8_t buf[1024];
+	
+	/* open the dump file */
+	FILE* dump = fopen("./nesdump.bin", "w+b");
+	
+	total = 0;
+	while(1)
+	{
+		t.tv_sec = 1;
+		
+		/* zero out the buffer */
+		bzero(buf, 1024);
+
+		ret = copynes_read(cn, buf, 1024, &t);
+		
+		if(ret > 0)
+		{
+			/* write to the dump file */
+			fwrite(buf, sizeof(uint8_t), ret, dump);
+				
+			/* record the total */
+			total += ret;
+		}
+		else
+		{
+			printf("dump complete, read %d bytes\n", total);
+			break;
+		}
+	}
+	
+	fclose(dump);
+	
+	return 0;
+}
+#endif
+

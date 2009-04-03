@@ -1,6 +1,6 @@
 /* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 4; tab-width: 4 -*- */
 /*
- * libcopynes.h
+ * copynes.h
  * Copyright (C) David Huseby 2009 <dave@linuxprogrammer.org>
  * 
  * This program is free software; you can redistribute it and/or
@@ -64,12 +64,18 @@ int copynes_reset(copynes_t cn, int mode);
 /* flush the I/O buffers in the CopyNES */
 void copynes_flush(copynes_t cn);
 
+/* read data from the CopyNES */
+ssize_t copynes_read(copynes_t cn, void* buf, size_t count, struct timeval *timeout);
+
+/* write data to the CopyNES */
+ssize_t copynes_write(copynes_t cn, void* buf, size_t size);
+
 /* test to see if the NES is on or not */
 int copynes_nes_on(copynes_t cn);
 
 /* get the copy nes version string, the buffer is allocated using malloc and
    the caller must free it themselves */
-int copynes_get_version(copynes_t cn, char** str);
+ssize_t copynes_get_version(copynes_t cn, void* buf, size_t size);
 
 /* load a specified CopyNES plugin, NOTE: plugin must be full path to the .bin */
 int copynes_load_plugin(copynes_t cn, char* plugin);
@@ -77,12 +83,8 @@ int copynes_load_plugin(copynes_t cn, char* plugin);
 /* run the loaded plugin */
 int copynes_run_plugin(copynes_t cn);
 
-/* read in the mirroring value sent from an executing plugin */
-int copynes_read_mirroring(copynes_t cn, uint8_t* mirroring);
-
-/* read in a packet from an executing plugin, packet is allocated using malloc
-   and the caller must free it themselves */
-int copynes_read_packet(copynes_t cn, copynes_packet_t *p);
+/* read a standard CopyNES packet */
+ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p);
 
 /* get the error string associated with the error */
 char* copynes_error_string(copynes_t cn);
