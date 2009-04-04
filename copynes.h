@@ -73,8 +73,7 @@ ssize_t copynes_write(copynes_t cn, void* buf, size_t size);
 /* test to see if the NES is on or not */
 int copynes_nes_on(copynes_t cn);
 
-/* get the copy nes version string, the buffer is allocated using malloc and
-   the caller must free it themselves */
+/* get the copy nes version string */
 ssize_t copynes_get_version(copynes_t cn, void* buf, size_t size);
 
 /* load a specified CopyNES plugin, NOTE: plugin must be full path to the .bin */

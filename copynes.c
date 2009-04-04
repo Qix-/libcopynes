@@ -420,7 +420,7 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 				t.tv_sec = 1;
 				t.tv_usec = 0;
 				
-				/* read in the low byte of the packet size */
+				/* read in the least significant byte */
 				if(copynes_read(cn, &((uint8_t*)&tmpshort)[1], sizeof(uint8_t), &t) != sizeof(uint8_t))
 				{
 					cn->err = FAILED_DATA_READ;
@@ -439,15 +439,15 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 				t.tv_sec = 1;
 				t.tv_usec = 0;
 
-				/* read in the high byte of the packet size */
+				/* read in the most significant byte */
 				if(copynes_read(cn, &((uint8_t*)&tmpshort)[0], sizeof(uint8_t), &t) != sizeof(uint8_t))
 				{
 					cn->err = FAILED_DATA_READ;
 					return -cn->err;
 				}
 				
-				/* convert the size from network order to host order so that we're portable
-				   I want this to run on my PPC mac just fine ;-) */
+				/* the size is now stored in big endian order--network order--
+				   so we need to convert it to the platform order using ntohs */
 				pkt->size = ntohs(tmpshort);
 	
 				/* convert from number of 256 byte blocks to the number of bytes */
@@ -562,7 +562,7 @@ void copynes_configure_tios(struct termios * tios)
 	/* enable receiver, make local */
 	tios->c_cflag |= (CLOCAL | CREAD);
 	
-	/* set 8N1 width, parity, and stop */
+	/* set 8N1: 8-bit width, no parity, and one stop bit */
 	tios->c_cflag &= ~PARENB;
 	tios->c_cflag &= ~CSTOPB;
 	tios->c_cflag &= ~CSIZE;
