@@ -40,12 +40,14 @@
 #define PACKET_PRG_ROM			1		/* PRG ROM */
 #define PACKET_CHR_ROM			2 		/* CHR ROM */
 #define PACKET_WRAM				3		/* WRAM */
-#define PACKET_EOD				0		/* END OF DATA */
+#define PACKET_RESET			4		/* Reset command from CopyNES */
+#define PACKET_EOD				0		/* End of data */
 
 typedef struct copynes_s *copynes_t;
 
 typedef struct copynes_packet_s
 {
+	int blocks;							/* in 256 byte blocks */
 	int size;							/* in bytes */
 	int type;							/* packet type */
 	uint8_t* data;						/* the data */

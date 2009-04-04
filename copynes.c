@@ -73,8 +73,11 @@ struct copynes_s
 	int control;
     int status;
 	int err;
+	int rbyte;
+	int rcount;
 	char* data_device;
 	char* control_device;
+	char* current_plugin;
 	fd_set readfds;
 	fd_set exceptfds;
 	struct termios old_tios_data_device;
@@ -154,6 +157,8 @@ void copynes_close(copynes_t cn)
         free(cn->data_device);
     if(cn->control_device != 0)
         free(cn->control_device);
+	if(cn->current_plugin != 0)
+		free(cn->current_plugin);
 }
 
 
@@ -358,6 +363,11 @@ int copynes_load_plugin(copynes_t cn, char* plugin)
 	fclose(f);
 	free(prg);
 	
+	/* remember which plugin we're running */
+	if(cn->current_plugin != 0)
+		free(cn->current_plugin);
+	cn->current_plugin = strdup(plugin);
+	
 	/* wait a bit */
 	usleep(USLEEP_SHORT);
 	
@@ -375,6 +385,10 @@ int copynes_run_plugin(copynes_t cn)
 		return -cn->err;
 	}
 	
+	/* initialize the reset counters */
+	cn->rbyte = 0;
+	cn->rcount = 0;
+	
 	return 0;
 }
 
@@ -385,13 +399,17 @@ int copynes_run_plugin(copynes_t cn)
 #define PACKET_READ_SIZE_2	2
 #define PACKET_READ_FORMAT 	3
 #define PACKET_READ_DATA	4
-#define PACKET_END			5
+#define PACKET_DO_RESET		5
+#define PACKET_READ_RBYTE_1	6
+#define PACKET_READ_RBYTE_2	7
+#define PACKET_END			8
 
 ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 {
 	int bytes = 0;
 	int ret = 0;
 	int i = 0;
+	int j = 0;
 	int state = PACKET_START;
 	uint8_t tmpbyte = 0;
 	uint16_t tmpshort = 0;
@@ -448,10 +466,10 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 				
 				/* the size is now stored in big endian order--network order--
 				   so we need to convert it to the platform order using ntohs */
-				pkt->size = ntohs(tmpshort);
+				pkt->blocks = ntohs(tmpshort);
 	
 				/* convert from number of 256 byte blocks to the number of bytes */
-				pkt->size <<= 8;
+				pkt->size = (pkt->blocks << 8);
 				
 				/* move to the next state */
 				state = PACKET_READ_FORMAT;
@@ -470,25 +488,53 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 					cn->err = FAILED_DATA_READ;
 					return -cn->err;
 				}
+				
+				/* store the packet type */
 				pkt->type = tmpbyte;
 				
-				/* check to see if there is packet body data to read */
-				if((pkt->size > 0) && (pkt->type != PACKET_EOD))
+				/* figure out where to go from here */
+				switch(pkt->type)
 				{
-					/* yep, allocate a buffer */
-					pkt->data = calloc(pkt->size, sizeof(uint8_t));
-		
-					/* move to the next state */
-					state = PACKET_READ_DATA;
-					
-					/* set up the index */
-					i = 0;
+					case PACKET_PRG_ROM:
+					case PACKET_CHR_ROM:
+					case PACKET_WRAM:
+					{
+						if(pkt->size > 0)
+						{
+							/* allocate a buffer for the data */
+							pkt->data = calloc(pkt->size, sizeof(uint8_t));
+				
+							/* move to the next state */
+							state = PACKET_READ_DATA;
+							
+							/* set up the indexes */
+							i = 0;
+							j = 0;
+						}
+						else
+						{
+							/* move to the end state */
+							state = PACKET_END;
+						}
+						
+						break;
+					}
+					case PACKET_RESET:
+					{
+						/* intialize the rbyte */
+						cn->rbyte = pkt->blocks / 4;
+						
+						/* fall through */
+					}
+					case PACKET_EOD:
+					{
+						/* move to the end state */
+						state = PACKET_END;
+						
+						break;
+					}
 				}
-				else
-				{
-					/* move to the next state */
-					state = PACKET_END;
-				}
+				
 				break;
 			}
 			
@@ -502,9 +548,30 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 				bytes = 0;
 				if(i < pkt->size)
 				{
-					/* now read the rest of the data in the input buffer */
-					bytes = copynes_read(cn, &pkt->data[i], (pkt->size - i), &t);
-					i += bytes;
+					if(j < KB(1))
+					{
+						/* read the remaining data up to 1K */
+						bytes = copynes_read(cn, &pkt->data[i + j], (KB(1) - j), &t);
+					
+						/* track how many bytes we've read */
+						j += bytes;
+					}
+					
+					/* if we've finished reading the 1K of data... */
+					if(j >= KB(1))
+					{
+						/* update total of how much we've read */
+						i += j;
+						
+						/* reset 1K counter */
+						j = 0;
+						
+						/* check to see if we need to reset the NES */
+						if(cn->rbyte)
+						{
+							state = PACKET_DO_RESET;
+						}
+					}
 				}
 				else
 				{
@@ -513,12 +580,86 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 				}
 				break;
 			}
+			
+			case PACKET_DO_RESET:
+			{
+				if(cn->rbyte)
+				{
+					cn->rcount++;
+					if(cn->rbyte <= cn->rcount)
+					{
+						/* reset the NES */
+						copynes_reset(cn, RESET_COPYMODE);
+
+						/* reload the plugin */
+						copynes_load_plugin (cn, cn->current_plugin);
+
+						/* rerun the plugin. NOTE: this will reset rbyte and rcount */
+						copynes_run_plugin (cn);
+						usleep(USLEEP_LONG);
+						
+						/* move to the next state */
+						state = PACKET_READ_RBYTE_1;
+					}
+				}
+				else
+				{
+					/* make sure we don't get stuck here */
+					state = PACKET_READ_DATA;
+				}
+				
+				break;
+			}
+				
+			case PACKET_READ_RBYTE_1:
+			{
+				/* reset tmpshort */
+				tmpshort = 0;
+				
+				/* reset timeval struct */
+				t.tv_sec = 1;
+				t.tv_usec = 0;
+				
+				/* read in the least significant byte */
+				if(copynes_read(cn, &((uint8_t*)&tmpshort)[1], sizeof(uint8_t), &t) != sizeof(uint8_t))
+				{
+					cn->err = FAILED_DATA_READ;
+					return -cn->err;
+				}
+				
+				/* move to the next state */
+				state = PACKET_READ_RBYTE_2;
+				
+				break;
+			}
+				
+			case PACKET_READ_RBYTE_2:
+			{
+				/* reset timeval struct */
+				t.tv_sec = 1;
+				t.tv_usec = 0;
+
+				/* read in the most significant byte */
+				if(copynes_read(cn, &((uint8_t*)&tmpshort)[0], sizeof(uint8_t), &t) != sizeof(uint8_t))
+				{
+					cn->err = FAILED_DATA_READ;
+					return -cn->err;
+				}
+				
+				/* the size is now stored in big endian order--network order--
+				   so we need to convert it to the platform order using ntohs */
+				cn->rbyte = ntohs(tmpshort) / 4;
+				
+				/* go back to the read data state */
+				state = PACKET_READ_DATA;
+				
+				break;
+			}
 		}
 	}
 	
 	return (ssize_t)i;
 }
-
 
 /* get the error string associated with the error */
 char* copynes_error_string(copynes_t cn)
