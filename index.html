@@ -1,6 +1,48 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <title>libcopynes</title>
+    </head>
+    <body>
+        <h1>libcopynes 0.3</h1>
+        <p><img alt="LGPL" src="lgplv3-88x31.png" /></p>
+        <p>Mercurial Repo: <a href="http://hg.linuxprogrammer.org/libcopynes">http://hg.linuxprogrammer.org/libcopynes</a></p>
+        <p>
+            This is a brand new portable library for talking to the CopyNES device.  
+            The original software that shipped with the device is Windows only 
+            and uses the custom FTDI DLL to talk to the device.  Since then, 
+            FTDI has released virtual com port (VCP) drivers for Windows, Linux 
+            and Mac OS X that makes the FTDI usb serial chip used in the CopyNES 
+            look like two standard serial devices.
+        </p>
+        <p>
+            You must have the VCP driver installed on your system before this 
+            library will work.  If you are using Linux, the 2.6.9 or newer kernel 
+            contains the driver.  I'm currently using Ubuntu 8.04 and when I plugged 
+            in my CopyNES, it was automatically detected, the VCP module was 
+            automatically loaded and the two serial devices were automatically 
+            created.
+        </p>
+        <p>
+            The copynes_open() function takes the string paths to the two serial 
+            devices.  On my Ubuntu system, the two serial devices were registered as 
+            /dev/ttyUSB0 and /dev/ttyUSB1.  On the CopyNES, the ttyUSB0 device is 
+            the data channel and the ttyUSB1 is the control channel.
+        </p>
+        <p>
+            This library is still a work in progress.  I'm implementing 
+            features as I need them, with plans to eventually support all 
+            CopyNES functions.
+        </p>
+        <p>
+            Enjoy!
+        </p>
+        <h2>ChangeLog</h2>
+<pre>
 2009-07-11  dave
 
-        * Migrated the old svn repo to Mercurial.
+        * Migrated the old svn repo to <a href="http://mercurial.selenic.com/wiki/">Mercurial</a>.
         * If anybody wants to contribute, go ahead and clone my repo and 
           either publish your tree or send me patches.
 
@@ -71,4 +113,6 @@
 	  missing: adding first version of the lib
 	* .: setting .cvsignore settings
 	* .: creating repo
-
+</pre>
+    </body>
+</html>

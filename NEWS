@@ -1,3 +1,8 @@
+July 11th, 2009 -- Switched to Mercurial
+I migrated the svn repo to a mercurial repo.  If anybody wishes to contribute,
+go ahead and clone my repo and either publish your own tree or send me
+patches.
+
 April 4th, 2009 -- 0.3 - Release!
 Works a lot better now.
 
