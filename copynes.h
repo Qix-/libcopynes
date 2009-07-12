@@ -57,7 +57,7 @@ copynes_t copynes_new();
 void copynes_free(void* cn);
 
 /* initialize/deinitialize the copy nes device */
-int copynes_open(copynes_t cn, char* data_device, char* control_device);
+int copynes_open(copynes_t cn, const char* data_device, const char* control_device);
 void copynes_close(copynes_t cn);
 
 /* reset the copy nes device into the mode specified */
@@ -79,13 +79,13 @@ int copynes_nes_on(copynes_t cn);
 ssize_t copynes_get_version(copynes_t cn, void* buf, size_t size);
 
 /* load a specified CopyNES plugin, NOTE: plugin must be full path to the .bin */
-int copynes_load_plugin(copynes_t cn, char* plugin);
+int copynes_load_plugin(copynes_t cn, const char* plugin);
 
 /* run the loaded plugin */
 int copynes_run_plugin(copynes_t cn);
 
 /* read a standard CopyNES packet */
-ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p);
+ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p, struct timeval timeout);
 
 /* get the error string associated with the error */
 char* copynes_error_string(copynes_t cn);

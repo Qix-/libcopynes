@@ -105,7 +105,7 @@ void copynes_free(void* cn)
 
 
 /* initialize/deinitialize the copy nes device */
-int copynes_open(copynes_t cn, char* data_device, char* control_device)
+int copynes_open(copynes_t cn, const char* data_device, const char* control_device)
 {
     /* clear the struct memory */
     memset(cn, 0, sizeof(copynes_t));
@@ -219,7 +219,7 @@ void copynes_flush(copynes_t cn)
 ssize_t copynes_read(copynes_t cn, void* buf, size_t count, struct timeval *timeout)
 {
 	ssize_t ret = 0;
-	int i = 0;
+	unsigned int i = 0;
 	int bytes = 0;
 	
 	if((count <= 0) || (buf == 0))
@@ -322,10 +322,9 @@ ssize_t copynes_get_version(copynes_t cn, void* buf, size_t size)
 
 
 /* load a specified CopyNES plugin, NOTE: plugin must be full path to the .bin */
-int copynes_load_plugin(copynes_t cn, char* plugin)
+int copynes_load_plugin(copynes_t cn, const char* plugin)
 {
 	FILE* f = 0;
-	int i;
 	uint8_t* prg = 0;
 	
 	/* try to open the plugin file */
@@ -404,17 +403,19 @@ int copynes_run_plugin(copynes_t cn)
 #define PACKET_READ_RBYTE_2	7
 #define PACKET_END			8
 
-ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
+ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p, struct timeval timeout)
 {
 	int bytes = 0;
-	int ret = 0;
 	int i = 0;
 	int j = 0;
 	int state = PACKET_START;
 	uint8_t tmpbyte = 0;
 	uint16_t tmpshort = 0;
 	copynes_packet_t pkt = 0;
-	struct timeval t = { 1L, 0L };
+	struct timeval t;
+	
+	t.tv_sec = timeout.tv_sec;
+	t.tv_usec = timeout.tv_usec;
 	
 	while(state != PACKET_END)
 	{
@@ -435,9 +436,8 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 			case PACKET_READ_SIZE_1:
 			{
 				/* reset timeval struct */
-				t.tv_sec = 1;
-				t.tv_usec = 0;
-				
+				t.tv_sec = timeout.tv_sec;
+				t.tv_usec = timeout.tv_usec;
 				/* read in the least significant byte */
 				if(copynes_read(cn, &((uint8_t*)&tmpshort)[1], sizeof(uint8_t), &t) != sizeof(uint8_t))
 				{
@@ -454,8 +454,8 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 			case PACKET_READ_SIZE_2:
 			{
 				/* reset timeval struct */
-				t.tv_sec = 1;
-				t.tv_usec = 0;
+				t.tv_sec = timeout.tv_sec;
+				t.tv_usec = timeout.tv_usec;
 
 				/* read in the most significant byte */
 				if(copynes_read(cn, &((uint8_t*)&tmpshort)[0], sizeof(uint8_t), &t) != sizeof(uint8_t))
@@ -479,8 +479,8 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 			case PACKET_READ_FORMAT:
 			{
 				/* reset timeval struct */
-				t.tv_sec = 1;
-				t.tv_usec = 0;
+				t.tv_sec = timeout.tv_sec;
+				t.tv_usec = timeout.tv_usec;
 				
 				/* read in the packet format */
 				if(copynes_read(cn, &tmpbyte, sizeof(uint8_t), &t) != sizeof(uint8_t))
@@ -541,8 +541,8 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 			case PACKET_READ_DATA:
 			{
 				/* reset timeval struct */
-				t.tv_sec = 1;
-				t.tv_usec = 0;
+				t.tv_sec = timeout.tv_sec;
+				t.tv_usec = timeout.tv_usec;
 				
 				/* read the bytes */
 				bytes = 0;
@@ -617,8 +617,8 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 				tmpshort = 0;
 				
 				/* reset timeval struct */
-				t.tv_sec = 1;
-				t.tv_usec = 0;
+				t.tv_sec = timeout.tv_sec;
+				t.tv_usec = timeout.tv_usec;
 				
 				/* read in the least significant byte */
 				if(copynes_read(cn, &((uint8_t*)&tmpshort)[1], sizeof(uint8_t), &t) != sizeof(uint8_t))
@@ -636,8 +636,8 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p)
 			case PACKET_READ_RBYTE_2:
 			{
 				/* reset timeval struct */
-				t.tv_sec = 1;
-				t.tv_usec = 0;
+				t.tv_sec = timeout.tv_sec;
+				t.tv_usec = timeout.tv_usec;
 
 				/* read in the most significant byte */
 				if(copynes_read(cn, &((uint8_t*)&tmpshort)[0], sizeof(uint8_t), &t) != sizeof(uint8_t))
