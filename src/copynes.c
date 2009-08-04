@@ -85,10 +85,10 @@ struct copynes_s
 };
 
 /* private interface function declarations */
-void copynes_get_status(copynes_t cn);
-void copynes_set_status(copynes_t cn);
-void copynes_configure_tios(struct termios * tios); /* used by copynes_configure_devices */
-void copynes_configure_devices(copynes_t cn);
+static void copynes_get_status(copynes_t cn);
+static void copynes_set_status(copynes_t cn);
+static void copynes_configure_tios(struct termios * tios); /* used by copynes_configure_devices */
+static void copynes_configure_devices(copynes_t cn);
 
 
 copynes_t copynes_new()
@@ -673,7 +673,7 @@ char* copynes_error_string(copynes_t cn)
  */
 
 /* get the current status bits of the control channel */
-void copynes_get_status(copynes_t cn)
+static void copynes_get_status(copynes_t cn)
 {
     /* get the status bits on the control port */
     ioctl(cn->control, TIOCMGET, &cn->status);
@@ -681,7 +681,7 @@ void copynes_get_status(copynes_t cn)
 
 
 /* set the current status bits of the control channel */
-void copynes_set_status(copynes_t cn)
+static void copynes_set_status(copynes_t cn)
 {
     /* set the status bits on the control port */
     ioctl(cn->control, TIOCMSET, &cn->status);
@@ -694,7 +694,7 @@ void copynes_set_status(copynes_t cn)
  * Operating Systems <http://www.easysw.com/~mike/serial/serial.html> by 
  * Michael R. Sweet, I was able to figure it out.
  */
-void copynes_configure_tios(struct termios * tios)
+static void copynes_configure_tios(struct termios * tios)
 {
 	/* set up 115.2kB baud rate */
 	cfsetispeed(tios, B115200);
@@ -728,7 +728,7 @@ void copynes_configure_tios(struct termios * tios)
 	tios->c_oflag &= ~OPOST;
 }
 
-void copynes_configure_devices(copynes_t cn)
+static void copynes_configure_devices(copynes_t cn)
 {
 	struct termios dataios;
 	struct termios controlios;
