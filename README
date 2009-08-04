@@ -1,4 +1,4 @@
-libcopynes version 0.1
+libcopynes
 
 This is a brand new portable library for talking to the CopyNES device 
 sold through retrousb.com.  The original software that shipped with the 
