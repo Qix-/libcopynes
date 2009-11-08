@@ -80,6 +80,8 @@ struct copynes_s
 	char* current_plugin;
 	fd_set readfds;
 	fd_set exceptfds;
+	uint8_t uservar_enabled[4];
+	uint8_t uservar_value[4];
 	struct termios old_tios_data_device;
 	struct termios old_tios_control_device;
 };
@@ -113,7 +115,11 @@ int copynes_open(copynes_t cn, const char* data_device, const char* control_devi
     /* store the device strings */
     cn->data_device = strdup(data_device);
     cn->control_device = strdup(control_device);
-    
+    cn->uservar_enabled[0] = 0;
+    cn->uservar_enabled[1] = 0;
+    cn->uservar_enabled[2] = 0;
+    cn->uservar_enabled[3] = 0;
+
     /* try to open the data channel */
     cn->data = open(cn->data_device, O_RDWR  | O_NOCTTY | O_NDELAY);
 
@@ -320,13 +326,53 @@ ssize_t copynes_get_version(copynes_t cn, void* buf, size_t size)
 	return ret;
 }
 
+/* BH - Added Oct 30 2009
+ * 	extern funcion to set user variables for running the plugin.
+ */
+int
+copynes_set_uservars(copynes_t cn, uint8_t enabled[4], uint8_t value[4])
+{
+	int i = 0;
+	for (i = 0; i < 4; i++) {
+		cn->uservar_enabled[i] = enabled[i];
+		cn->uservar_value[i] = value[i];
+	}
+	return 0;
+}
+
+
+/* BH - Added Oct 30 2009
+ *      called from load_plugin to apply the uservars
+ *      set by set_uservars when plugin is loaded.
+ */
+int 
+copynes_apply_uservars(copynes_t cn, uint8_t* prg, long prg_size)
+{
+	typedef struct uservar {
+		uint8_t description[14];
+		uint8_t enabled;
+		uint8_t value;
+	} uservar_t;
+	struct uservar* usrvar[4];
+	int i = 0;
+
+	for (i = 0; i < 4; i++) {
+		if (cn->uservar_enabled[i]) {
+			/* last 4 uservar sized chunks are for the uservars */
+			usrvar[i] = (struct uservar*)&prg[prg_size - (sizeof (struct uservar) * (4 - i))];
+			usrvar[i]->enabled = cn->uservar_enabled[i];
+			usrvar[i]->value = cn->uservar_value[i];
+		}
+	}
+	return 0;
+}
 
 /* load a specified CopyNES plugin, NOTE: plugin must be full path to the .bin */
 int copynes_load_plugin(copynes_t cn, const char* plugin)
 {
 	FILE* f = 0;
 	uint8_t* prg = 0;
-	
+
 	/* try to open the plugin file */
 	if((f = fopen(plugin, "rb")) == 0)
 	{
@@ -334,13 +380,6 @@ int copynes_load_plugin(copynes_t cn, const char* plugin)
 		return -cn->err;
 	}
 	
-	/* send the command to store the plugin prg data at 0400h */
-	if(copynes_write(cn, CMD_LOAD_PLUGIN, CMD_SIZE(CMD_LOAD_PLUGIN)) != CMD_SIZE(CMD_LOAD_PLUGIN))
-	{
-		fclose(f);
-		cn->err = FAILED_COMMAND_SEND;
-		return -cn->err;
-	}
 	
 	/* seek to the plugin prg data */
 	fseek(f, 128, SEEK_SET);
@@ -348,7 +387,16 @@ int copynes_load_plugin(copynes_t cn, const char* plugin)
 	
 	/* read in the plugin prg data */	
 	fread(prg, KB(1), sizeof(uint8_t), f);
-	
+	copynes_apply_uservars(cn, prg, KB(1));
+
+	/* send the command to store the plugin prg data at 0400h */
+	if(copynes_write(cn, CMD_LOAD_PLUGIN, CMD_SIZE(CMD_LOAD_PLUGIN)) != CMD_SIZE(CMD_LOAD_PLUGIN))
+	{
+		fclose(f);
+		cn->err = FAILED_COMMAND_SEND;
+		return -cn->err;
+	}
+
 	/* send the data to the CopyNES */
 	if(copynes_write(cn, prg, KB(1)) != KB(1))
 	{
@@ -366,7 +414,7 @@ int copynes_load_plugin(copynes_t cn, const char* plugin)
 	if(cn->current_plugin != 0)
 		free(cn->current_plugin);
 	cn->current_plugin = strdup(plugin);
-	
+
 	/* wait a bit */
 	usleep(USLEEP_SHORT);
 	

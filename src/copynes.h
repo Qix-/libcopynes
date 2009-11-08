@@ -90,4 +90,6 @@ ssize_t copynes_read_packet(copynes_t cn, copynes_packet_t *p, struct timeval ti
 /* get the error string associated with the error */
 char* copynes_error_string(copynes_t cn);
 
+/* set plugin specific uservars */
+int copynes_set_uservars(copynes_t cn, uint8_t enabled[4], uint8_t value[4]);
 #endif
