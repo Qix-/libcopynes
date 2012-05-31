@@ -1,74 +1,248 @@
-2009-07-11  dave
+2012-05-31  Dave Huseby  <dave@linuxprogrammer.org>
 
-        * Migrated the old svn repo to Mercurial.
-        * If anybody wants to contribute, go ahead and clone my repo and 
-          either publish your tree or send me patches.
+	* .hgignore, src/copynes.c:
+	there is no IUCLC flag in Mac OS X termios.h
+	[a5c44f533581] [tip]
 
-2009-04-04  dave
+	* src/copynes.c:
+	adding an include for system-specific termios.h too
+	[96b066baaf19]
 
-	* ChangeLog, Makefile.am, copynes.c, copynes.h: adding support for
-	  the reset requests from the plugins
-	* copynes.c, copynes.h: fixing some comments
+	* .hgignore, src/copynes.c:
+	switching over to termios.h for better posix compatibility
+	[f0c9511be026]
 
-2009-04-03  dave
+2009-11-07  crade cradelit  <crade cradelit@gmail.com>
 
-	* configure.ac: updating configure.ac to be 0.3
-	* ChangeLog: saving ChangeLog
-	* Makefile.am, copynes.c, copynes.h: switched over to async I/O and
-	  fixed the serial port config problems.
+	* src/copynes.c, src/copynes.h:
+	Added support for plugin user variables
+	[747a92e1026b]
 
-2009-03-08  dave
+2009-08-04  Dave Huseby  <dave@linuxprogrammer.org>
 
-	* COPYING, COPYING.LIB: updating to LGPL 3.0
-	* ChangeLog: updating ChangeLog
-	* ChangeLog, Makefile.am, autogen.sh, configure.ac: fixing the
-	  versioning of the dynamic library
-	  tweaking the autogen.sh script
-	* copynes.c, copynes.h: added plugin loading and running
-	  added reading plugin output mirroring and packets
+	* Makefile.am, Makefile.in, aclocal.m4, autom4te.cache/output.0,
+	autom4te.cache/output.1, autom4te.cache/requests,
+	autom4te.cache/traces.0, autom4te.cache/traces.1, config.guess,
+	config.h.in, config.sub, configure, configure.ac, copynes.c,
+	copynes.h, ltmain.sh, m4/libtool.m4, m4/ltoptions.m4, m4/ltsugar.m4,
+	m4/ltversion.m4, m4/lt~obsolete.m4, src/Makefile.am,
+	src/Makefile.in, src/copynes.c, src/copynes.h:
+	adding "static" keyword to private helper functions. reworking
+	autotools configuration files so that the source is in a src subdir
+	and the headers and library get installed in the correct location.
+	[e578ccf6813f]
 
-2009-03-07  dave
+	* README:
+	removing version from README
+	[b8487c26e156]
 
-	* copynes.c, copynes.h: some details
-	* copynes.c, copynes.h: fixing some bugs
-	* configure.ac: fixing the install paths
-	* autogen.sh: readding it as executable
-	* autogen.sh: removing autogen.sh and trying again
-	* autogen.sh: readding autogen.sh so that it is executable
-	* acinclude.m4: adding libtool macro defines
-	* autogen.sh: adding autogen.sh
+2009-07-11  Dave Huseby  <dave@linuxprogrammer.org>
 
-2009-03-06  dave
+	* copynes.c, copynes.h:
+	Here is a patch for libcopynes. I couldn't get mmc1 to dump in the
+	1 second timeout, so I made it configurable. I also changed some
+	char* to const char* to get rid of my warnings :)
 
-	* ChangeLog: done with autotools
-	* configure.ac: oops
-	* AUTHORS, COPYING.LIB, ChangeLog, INSTALL, Makefile.am, NEWS,
-	  README, configure.ac, depcomp, install-sh, missing: getting
-	  autotools just right
-	* src: rm src dir
-	* copynes.c, copynes.h, src/Makefile.am, src/copynes.c,
-	  src/copynes.h: trying some more stuff
+	Crade Lit <cradelit@gmail.com>
+	[404263c6ecdb]
 
-2009-03-05  dave
+	* .hgtags:
+	Added tag 0.3 for changeset 5910c8128254
+	[db742175b871]
 
-	* Makefile.am, configure.ac, src, src/Makefile.am, src/copynes.c,
-	  src/copynes.h: doing autotools from scratch
+	* .hgtags:
+	Added tag 0.2 for changeset 44c07c064004
+	[d43e63659d1c]
+
+	* .hgtags:
+	Removed tag 0.3
+	[1f755d4a9942]
+
+	* .hgtags:
+	Removed tag 0.2
+	[71d80d89c76f]
+
+	* .hgtags:
+	Added tag 0.1 for changeset f58a457370ed
+	[943bee091f0c]
+
+	* .hgtags:
+	Removed tag 1.0
+	[b61a94660462]
+
+	* .hgtags:
+	Added tag 1.0 for changeset f58a457370ed
+	[47c42dc479e5]
+
+	* .hgtags:
+	Removed tag 0.1
+	[d6fe97ef4651]
+
+	* .hgignore, ChangeLog, NEWS, index.html:
+	updating meta data for the project
+	[7f13f316ce93]
+
+2009-07-09  Dave Huseby  <huseby@lindenlab.com>
+
+	* NEWS:
+	updating the NEWS file
+	[4335d78e8e49]
+
+2009-07-09  Dave Huseby  <dave@linuxprogrammer.org>
+
+	* .hgtags:
+	restoring 0.3 tag
+	[5910c8128254] [0.3]
+
+	* .hgtags:
+	restoring 0.2 tag
+	[0f05473c267a]
+
+2009-04-04  Dave Huseby  <dave@linuxprogrammer.org>
+
+	* ChangeLog:
+	updating change log
+	[bb6487de2610]
+
+	* ChangeLog, Makefile.am, copynes.c, copynes.h:
+	adding support for the reset requests from the plugins
+	[839fe702f02a]
+
+	* copynes.c, copynes.h:
+	fixing some comments
+	[dba4897c316b]
+
+2009-04-03  Dave Huseby  <dave@linuxprogrammer.org>
+
+	* configure.ac:
+	updating configure.ac to be 0.3
+	[736a6b7309a0]
+
+	* ChangeLog:
+	saving ChangeLog
+	[44c07c064004] [0.2]
+
+	* Makefile.am, copynes.c, copynes.h:
+	switched over to async I/O and fixed the serial port config
+	problems.
+	[b76f5ab3e03c]
+
+2009-03-08  Dave Huseby  <dave@linuxprogrammer.org>
+
+	* COPYING, COPYING.LIB:
+	updating to LGPL 3.0
+	[900f943454e8]
+
+	* ChangeLog:
+	updating ChangeLog
+	[49132481cd83]
+
+	* ChangeLog, Makefile.am, autogen.sh, configure.ac:
+	fixing the versioning of the dynamic library tweaking the autogen.sh
+	script
+	[6f7bb7a4a47e]
+
+	* copynes.c, copynes.h:
+	added plugin loading and running added reading plugin output
+	mirroring and packets
+	[18193ee45f4b]
+
+2009-03-07  Dave Huseby  <dave@linuxprogrammer.org>
+
+	* copynes.c, copynes.h:
+	some details
+	[78ab5d236407]
+
+	* copynes.c, copynes.h:
+	fixing some bugs
+	[8f4c7ce4e7db]
+
+	* configure.ac:
+	fixing the install paths
+	[3d39fcef349b]
+
+	* .hgtags:
+	First release:
+	- open/close
+	- reset
+	- version string
+	[f58a457370ed] [0.1]
+
+	* autogen.sh:
+	readding it as executable
+	[1bb802a4e5bf]
+
+	* autogen.sh:
+	removing autogen.sh and trying again
+	[bf3f4439152d]
+
+	* autogen.sh:
+	readding autogen.sh so that it is executable
+	[8b7089024c13]
+
+	* acinclude.m4:
+	adding libtool macro defines
+	[d43c02d8525c]
+
+	* autogen.sh:
+	adding autogen.sh
+	[e77e16b95a48]
+
+2009-03-06  Dave Huseby  <dave@linuxprogrammer.org>
+
+	* ChangeLog:
+	done with autotools
+	[8085b1bade21]
+
+	* configure.ac:
+	oops
+	[252a203e40a5]
+
+	* AUTHORS, COPYING.LIB, ChangeLog, INSTALL, Makefile.am, NEWS, README,
+	configure.ac, depcomp, install-sh, missing:
+	getting autotools just right
+	[524f8df6fbbf]
+
+	* copynes.c, copynes.h, src/Makefile.am, src/copynes.c, src/copynes.h:
+	trying some more stuff
+	[471ad0f8cd4a]
+
+2009-03-05  Dave Huseby  <dave@linuxprogrammer.org>
+
+	* Makefile.am, configure.ac, src/Makefile.am, src/copynes.c,
+	src/copynes.h:
+	doing autotools from scratch
+	[adc3d071a172]
+
 	* .cvsignore, Makefile.am, autogen.sh, configure.ac, copynes.c,
-	  copynes.h, depcomp, install-sh, libcopynes.anjuta, missing:
-	  starting over from scratch with autotools
-	* configure.ac: a tweak
-	* copynes.c: cleaning
-	* src: cleaning up
-	* Makefile.am, copynes.c, copynes.h, src/Makefile.am,
-	  src/copynes.c, src/copynes.h: moving stuff back
-	* Makefile.am, copynes.c, copynes.h, src/Makefile.am,
-	  src/copynes.c, src/copynes.h: moving stuff around
-	* src: moving source files to src dir, step 1
+	copynes.h, depcomp, install-sh, libcopynes.anjuta, missing:
+	starting over from scratch with autotools
+	[ada1ea387e3e]
+
+	* configure.ac:
+	a tweak
+	[0bf5c91edd21]
+
+	* copynes.c:
+	cleaning
+	[fd45bfa623cb]
+
+	* Makefile.am, copynes.c, copynes.h, src/Makefile.am, src/copynes.c,
+	src/copynes.h:
+	moving stuff back
+	[58ec6bd1aaa0]
+
+	* Makefile.am, copynes.c, copynes.h, src/Makefile.am, src/copynes.c,
+	src/copynes.h:
+	moving stuff around
+	[27d8a1457c16]
+
 	* Makefile.am, copynes.c, copynes.h, libcopynes.c, libcopynes.h:
-	  renaming some files
-	* .cvsignore, Makefile.am, autogen.sh, configure.ac, depcomp,
-	  install-sh, libcopynes.anjuta, libcopynes.c, libcopynes.h,
-	  missing: adding first version of the lib
-	* .: setting .cvsignore settings
-	* .: creating repo
+	renaming some files
+	[0732886e26e3]
+
+	* .cvsignore, Makefile.am, autogen.sh, configure.ac, depcomp, install-
+	sh, libcopynes.anjuta, libcopynes.c, libcopynes.h, missing:
+	adding first version of the lib
+	[02127db2114e]
 
