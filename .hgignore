@@ -1,2 +1,16 @@
 syntax: glob
 *~
+*.swp
+Makefile
+libtool
+config.h
+config.log
+config.status
+stamp-h1
+*.Plo
+*.a
+*.la*
+*.so*
+*.o
+*.lo
+
