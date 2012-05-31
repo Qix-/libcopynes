@@ -773,7 +773,12 @@ static void copynes_configure_tios(struct termios * tios)
 	 * 8-bit binary data over a serial port?!?  I beat my head against this one 
 	 * for about a week before figuring out the correct settings for this flag!
 	 */
+#if defined __APPLE__
+	/* there is no IUCLC flag in Mac OS X's termios.h */
+	tios->c_iflag &= ~(INPCK | IGNPAR | PARMRK | ISTRIP | IXON | IXOFF | IXANY | ICRNL | INLCR | BRKINT);
+#else
 	tios->c_iflag &= ~(INPCK | IGNPAR | PARMRK | ISTRIP | IXON | IXOFF | IXANY | ICRNL | INLCR | IUCLC | BRKINT);
+#endif
 	
 	/* set up raw output */
 	tios->c_oflag &= ~OPOST;

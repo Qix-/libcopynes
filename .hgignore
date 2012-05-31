@@ -1,6 +1,7 @@
 syntax: glob
 *~
 *.swp
+src/.libs/*
 Makefile
 libtool
 config.h
